@@ -27,12 +27,21 @@ class ExecTool(Tool):
             r"\brm\s+-[rf]{1,2}\b",          # rm -r, rm -rf, rm -fr
             r"\bdel\s+/[fq]\b",              # del /f, del /q
             r"\brmdir\s+/s\b",               # rmdir /s
-            r"(?:^|[;&|]\s*)format\b",       # format (as standalone command only)
+            r"(?:^|[;&|]\s*)format\b",       # format
             r"\b(mkfs|diskpart)\b",          # disk operations
             r"\bdd\s+if=",                   # dd
             r">\s*/dev/sd",                  # write to disk
             r"\b(shutdown|reboot|poweroff)\b",  # system power
             r":\(\)\s*\{.*\};\s*:",          # fork bomb
+            # 新增：Windows 特定危险命令
+            r"\bcd\s+/[dD]",                 # cd /d (可能改变驱动器)
+            r"\bnet\s+(user|share|group)\b", # net user/share/group
+            r"\breg\s+(add|delete|import|export)\b",  # registry operations
+            r"\bicacls\s+",                  # 修改文件权限
+            r"\bwmic\s+",                    # WMI 命令
+            # 新增：网络相关
+            r"\bnetstat\s+-an\b",            # 网络监听
+            r"\bnc\s+-l",                    # netcat 监听
         ]
         self.allow_patterns = allow_patterns or []
         self.restrict_to_workspace = restrict_to_workspace
