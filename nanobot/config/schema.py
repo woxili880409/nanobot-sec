@@ -288,11 +288,19 @@ class WebSearchConfig(Base):
     max_results: int = 5
 
 
+class TavilySearchConfig(Base):
+    """Tavily search tool configuration."""
+
+    api_key: str = ""  # Tavily Search API key
+    max_results: int = 5
+
+
 class WebToolsConfig(Base):
     """Web tools configuration."""
 
     proxy: str | None = None  # HTTP/SOCKS5 proxy URL, e.g. "http://127.0.0.1:7890" or "socks5://127.0.0.1:1080"
     search: WebSearchConfig = Field(default_factory=WebSearchConfig)
+    tavily: TavilySearchConfig = Field(default_factory=TavilySearchConfig)
 
 
 class ExecToolConfig(Base):

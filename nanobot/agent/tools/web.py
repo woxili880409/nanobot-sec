@@ -106,6 +106,68 @@ class WebSearchTool(Tool):
             return f"Error: {e}"
 
 
+class TavilySearchTool(Tool):
+    """Search the web using Tavily Search API."""
+
+    name = "tavily_search"
+    description = "Search the web using Tavily AI search with enhanced accuracy. Returns titles, URLs, and AI-summarized content snippets. Use this for research-focused queries requiring comprehensive results."
+    parameters = {
+        "type": "object",
+        "properties": {
+            "query": {"type": "string", "description": "Search query"},
+            "count": {"type": "integer", "description": "Results (1-10)", "minimum": 1, "maximum": 10}
+        },
+        "required": ["query"]
+    }
+
+    def __init__(self, api_key: str | None = None, max_results: int = 5, proxy: str | None = None):
+        self._init_api_key = api_key
+        self.max_results = max_results
+        self.proxy = proxy
+
+    @property
+    def api_key(self) -> str:
+        """Resolve API key at call time so env/config changes are picked up."""
+        return self._init_api_key or os.environ.get("TAVILY_API_KEY", "")
+
+    async def execute(self, query: str, count: int | None = None, **kwargs: Any) -> str:
+        if not self.api_key:
+            return (
+                "Error: Tavily Search API key not configured. Set it in "
+                "~/.nanobot/config.json under tools.web.tavily.apiKey "
+                "(or export TAVILY_API_KEY), then restart the gateway."
+            )
+
+        try:
+            n = min(max(count or self.max_results, 1), 10)
+            logger.debug("TavilySearch: {}", "proxy enabled" if self.proxy else "direct connection")
+            async with httpx.AsyncClient(proxy=self.proxy) as client:
+                r = await client.post(
+                    "https://api.tavily.com/search",
+                    json={"query": query, "max_results": n},
+                    headers={"Content-Type": "application/json", "Authorization": f"Bearer {self.api_key}"},
+                    timeout=10.0
+                )
+                r.raise_for_status()
+
+            results = r.json().get("results", [])[:n]
+            if not results:
+                return f"No results for: {query}"
+
+            lines = [f"Results for: {query}\n"]
+            for i, item in enumerate(results, 1):
+                lines.append(f"{i}. {item.get('title', '')}\n   {item.get('url', '')}")
+                if desc := item.get("content"):
+                    lines.append(f"   {desc}")
+            return "\n".join(lines)
+        except httpx.ProxyError as e:
+            logger.error("TavilySearch proxy error: {}", e)
+            return f"Proxy error: {e}"
+        except Exception as e:
+            logger.error("TavilySearch error: {}", e)
+            return f"Error: {e}"
+
+
 class WebFetchTool(Tool):
     """Fetch and extract content from a URL using Readability."""
 
