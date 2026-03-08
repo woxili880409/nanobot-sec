@@ -79,7 +79,17 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
         litellm_prefix="",
         is_direct=True,
     ),
-
+    # === NexaAI (local OpenAI-compatible endpoint, bypasses LiteLLM) =====
+    ProviderSpec(
+        name="nexaai",
+        keywords=("nexaai",),
+        env_key="",
+        display_name="NexaAI",
+        litellm_prefix="",
+        is_direct=True,
+        is_local=True,
+        default_api_base="http://127.0.0.1:18181/v1",
+    ),
     # === Azure OpenAI (direct API calls with API version 2024-10-21) =====
     ProviderSpec(
         name="azure_openai",

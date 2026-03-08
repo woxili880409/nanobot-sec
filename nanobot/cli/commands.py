@@ -233,6 +233,15 @@ def _make_provider(config: Config):
             default_model=model,
         )
 
+    # NexaAI: local OpenAI-compatible endpoint, bypasses LiteLLM
+    from nanobot.providers.nexaai_provider import NexaaiProvider
+    if provider_name == "nexaai":
+        return NexaaiProvider(
+            api_key=p.api_key if p else "no-key",
+            api_base=config.get_api_base(model) or "http://127.0.0.1:18181/v1",
+            default_model=model,
+        )
+
     # Azure OpenAI: direct Azure OpenAI endpoint with deployment name
     if provider_name == "azure_openai":
         if not p or not p.api_key or not p.api_base:
