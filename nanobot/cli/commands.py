@@ -527,9 +527,12 @@ def agent(
 
         signal.signal(signal.SIGINT, _handle_signal)
         signal.signal(signal.SIGTERM, _handle_signal)
-        signal.signal(signal.SIGHUP, _handle_signal)
+        # SIGHUP and SIGPIPE are Unix-only signals, not available on Windows
+        if hasattr(signal, 'SIGHUP'):
+            signal.signal(signal.SIGHUP, _handle_signal)
         # Ignore SIGPIPE to prevent silent process termination when writing to closed pipes
-        signal.signal(signal.SIGPIPE, signal.SIG_IGN)
+        if hasattr(signal, 'SIGPIPE'):
+            signal.signal(signal.SIGPIPE, signal.SIG_IGN)
 
         async def run_interactive():
             bus_task = asyncio.create_task(agent_loop.run())
