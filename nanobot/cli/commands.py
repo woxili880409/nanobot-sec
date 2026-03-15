@@ -20,12 +20,11 @@ if sys.platform == "win32":
             pass
 
 import typer
-from prompt_toolkit import print_formatted_text
-from prompt_toolkit import PromptSession
+from prompt_toolkit import PromptSession, print_formatted_text
+from prompt_toolkit.application import run_in_terminal
 from prompt_toolkit.formatted_text import ANSI, HTML
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.patch_stdout import patch_stdout
-from prompt_toolkit.application import run_in_terminal
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.table import Table
@@ -300,9 +299,9 @@ def _onboard_plugins(config_path: Path) -> None:
 
 def _make_provider(config: Config):
     """Create the appropriate LLM provider from config."""
+    from nanobot.providers.azure_openai_provider import AzureOpenAIProvider
     from nanobot.providers.base import GenerationSettings
     from nanobot.providers.openai_codex_provider import OpenAICodexProvider
-    from nanobot.providers.azure_openai_provider import AzureOpenAIProvider
 
     model = config.agents.defaults.model
     provider_name = config.get_provider_name(model)
@@ -434,6 +433,7 @@ def gateway(
         max_iterations=config.agents.defaults.max_tool_iterations,
         context_window_tokens=config.agents.defaults.context_window_tokens,
         web_search_config=config.tools.web.search,
+        web_tavily_config=config.tools.web.tavily,
         web_proxy=config.tools.web.proxy or None,
         exec_config=config.tools.exec,
         cron_service=cron,
@@ -626,6 +626,7 @@ def agent(
         max_iterations=config.agents.defaults.max_tool_iterations,
         context_window_tokens=config.agents.defaults.context_window_tokens,
         web_search_config=config.tools.web.search,
+        web_tavily_config=config.tools.web.tavily,
         web_proxy=config.tools.web.proxy or None,
         exec_config=config.tools.exec,
         cron_service=cron,
@@ -1061,6 +1062,117 @@ def _login_github_copilot() -> None:
     except Exception as e:
         console.print(f"[red]Authentication error: {e}[/red]")
         raise typer.Exit(1)
+
+
+# ============================================================================
+# Session Cleaner
+# ============================================================================
+
+session_app = typer.Typer(help="Manage sessions and memory")
+app.add_typer(session_app, name="session")
+
+
+@session_app.command("clean")
+def session_clean(
+    workspace: str | None = typer.Option(None, "--workspace", "-w", help="Workspace directory"),
+):
+    """
+    Interactive session and memory cleaner.
+
+    Clean session files and memory files to reduce token consumption.
+    Supports:
+    - Delete session files by selection
+    - Delete session content by line/role
+    - Delete memory files by selection
+    """
+    from nanobot.cli.session_cleaner import run_cleaner
+    from nanobot.config.loader import load_config
+
+    config = load_config()
+    ws = Path(workspace) if workspace else config.workspace_path
+
+    if not ws.exists():
+        console.print(f"[red]Workspace not found: {ws}[/red]")
+        raise typer.Exit(1)
+
+    console.print(f"[dim]Workspace: {ws}[/dim]\n")
+    run_cleaner(ws)
+
+
+@session_app.command("list")
+def session_list(
+    workspace: str | None = typer.Option(None, "--workspace", "-w", help="Workspace directory"),
+):
+    """List all sessions with statistics."""
+    from nanobot.cli.session_cleaner import SessionCleaner
+    from nanobot.config.loader import load_config
+
+    config = load_config()
+    ws = Path(workspace) if workspace else config.workspace_path
+
+    if not ws.exists():
+        console.print(f"[red]Workspace not found: {ws}[/red]")
+        raise typer.Exit(1)
+
+    cleaner = SessionCleaner(ws)
+    sessions = cleaner._list_sessions()
+
+    if not sessions:
+        console.print("[yellow]No sessions found[/yellow]")
+        return
+
+    table = Table(title="Sessions")
+    table.add_column("Key", style="cyan")
+    table.add_column("Messages")
+    table.add_column("Est. Tokens")
+    table.add_column("Updated")
+
+    for s in sessions:
+        table.add_row(
+            s.get("key", "-"),
+            str(s.get("messages", 0)),
+            cleaner._estimate_tokens(s.get("messages", 0)),
+            cleaner._format_datetime(s.get("updated_at")),
+        )
+
+    console.print(table)
+
+
+@session_app.command("clear")
+def session_clear(
+    session_key: str = typer.Argument(..., help="Session key to clear (e.g., 'cli:direct')"),
+    workspace: str | None = typer.Option(None, "--workspace", "-w", help="Workspace directory"),
+    force: bool = typer.Option(False, "--force", "-f", help="Skip confirmation"),
+):
+    """Clear a specific session's messages (keeps metadata)."""
+    from nanobot.config.loader import load_config
+    from nanobot.session.manager import SessionManager
+
+    config = load_config()
+    ws = Path(workspace) if workspace else config.workspace_path
+
+    if not ws.exists():
+        console.print(f"[red]Workspace not found: {ws}[/red]")
+        raise typer.Exit(1)
+
+    sm = SessionManager(ws)
+    session = sm.get_or_create(session_key)
+
+    msg_count = len(session.messages)
+    if msg_count == 0:
+        console.print(f"[yellow]Session '{session_key}' is already empty[/yellow]")
+        return
+
+    if not force:
+        console.print(f"Session: [cyan]{session_key}[/cyan]")
+        console.print(f"Messages: {msg_count}")
+        if not typer.confirm("Clear all messages?"):
+            console.print("[yellow]Cancelled[/yellow]")
+            return
+
+    session.clear()
+    sm.save(session)
+    console.print(f"[green]✓[/green] Cleared {msg_count} messages from session '{session_key}'")
 
 
 if __name__ == "__main__":

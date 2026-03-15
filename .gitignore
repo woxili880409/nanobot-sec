@@ -21,8 +21,11 @@ poetry.lock
 .pytest_cache/
 botpy.log
 tests/
+nano.*.save
+
+# ==========
 workspace/
 .vscode/
 skill-vetter/
 self-improving/
-nano.*.save
+mydocs/

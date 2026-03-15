@@ -172,7 +172,7 @@ class WebSearchTool(Tool):
             headers = {"Accept": "application/json", "Authorization": f"Bearer {api_key}"}
             async with httpx.AsyncClient(proxy=self.proxy) as client:
                 r = await client.get(
-                    f"https://s.jina.ai/",
+                    "https://s.jina.ai/",
                     params={"q": query},
                     headers=headers,
                     timeout=15.0,
@@ -219,15 +219,21 @@ class TavilySearchTool(Tool):
         "required": ["query"]
     }
 
-    def __init__(self, api_key: str | None = None, max_results: int = 5, proxy: str | None = None):
-        self._init_api_key = api_key
-        self.max_results = max_results
+    def __init__(self, config: Any | None = None, proxy: str | None = None):
+        from nanobot.config.schema import WebToolsConfig
+
+        self.config = config if config is not None else WebToolsConfig()
         self.proxy = proxy
 
     @property
     def api_key(self) -> str:
         """Resolve API key at call time so env/config changes are picked up."""
-        return self._init_api_key or os.environ.get("TAVILY_API_KEY", "")
+        return getattr(self.config, "api_key", "") or os.environ.get("TAVILY_API_KEY", "")
+
+    @property
+    def max_results(self) -> int:
+        """Get maximum results from config."""
+        return getattr(self.config, "max_results", 5)
 
     async def execute(self, query: str, count: int | None = None, **kwargs: Any) -> str:
         if not self.api_key:
@@ -253,15 +259,24 @@ class TavilySearchTool(Tool):
             if not results:
                 return f"No results for: {query}"
 
-            lines = [f"Results for: {query}\n"]
-            for i, item in enumerate(results, 1):
-                lines.append(f"{i}. {item.get('title', '')}\n   {item.get('url', '')}")
-                if desc := item.get("content"):
-                    lines.append(f"   {desc}")
-            return "\n".join(lines)
+            return _format_results(query, results, n)
         except httpx.ProxyError as e:
             logger.error("TavilySearch proxy error: {}", e)
-            return f"Proxy error: {e}"
+            return f"Proxy error: {e}. Please check your proxy settings."
+        except httpx.HTTPStatusError as e:
+            logger.error("TavilySearch HTTP error: {} {}", e.response.status_code, e.response.text)
+            if e.response.status_code == 401:
+                return "Error: Invalid Tavily API key. Please check your API key configuration."
+            elif e.response.status_code == 429:
+                return "Error: Rate limit exceeded. Please try again later."
+            else:
+                return f"HTTP error: {e.response.status_code} - {e.response.text[:100]}..."
+        except httpx.RequestError as e:
+            logger.error("TavilySearch request error: {}", e)
+            return f"Request error: {e}. Please check your network connection."
+        except json.JSONDecodeError as e:
+            logger.error("TavilySearch JSON decode error: {}", e)
+            return "Error: Invalid response from Tavily API. Please try again later."
         except Exception as e:
             logger.error("TavilySearch error: {}", e)
             return f"Error: {e}"
