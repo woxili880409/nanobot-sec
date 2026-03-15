@@ -23,3 +23,5 @@ botpy.log
 tests/
 workspace/
 .vscode/
+skill-vetter/
+self-improving/
