@@ -20,7 +20,6 @@ __pycache__/
 poetry.lock
 .pytest_cache/
 botpy.log
-tests/
 nano.*.save
 
 # ==========
@@ -29,3 +28,6 @@ workspace/
 skill-vetter/
 self-improving/
 mydocs/
+
+.DS_Store
+uv.lock
