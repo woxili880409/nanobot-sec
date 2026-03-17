@@ -5,12 +5,13 @@ import shutil
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from loguru import logger
 
 from nanobot.config.paths import get_legacy_sessions_dir
 from nanobot.utils.helpers import ensure_dir, safe_filename
+from nanobot.security.encryption import SessionEncryption
 
 
 @dataclass
@@ -104,13 +105,15 @@ class SessionManager:
     Manages conversation sessions.
 
     Sessions are stored as JSONL files in the sessions directory.
+    Supports optional encryption for sensitive message content.
     """
 
-    def __init__(self, workspace: Path):
+    def __init__(self, workspace: Path, encryption: Optional[SessionEncryption] = None):
         self.workspace = workspace
         self.sessions_dir = ensure_dir(self.workspace / "sessions")
         self.legacy_sessions_dir = get_legacy_sessions_dir()
         self._cache: dict[str, Session] = {}
+        self.encryption = encryption  # 会话加密器
 
     def _get_session_path(self, key: str) -> Path:
         """Get the file path for a session."""
@@ -162,6 +165,7 @@ class SessionManager:
             metadata = {}
             created_at = None
             last_consolidated = 0
+            encrypted = False
 
             with open(path, encoding="utf-8") as f:
                 for line in f:
@@ -175,7 +179,11 @@ class SessionManager:
                         metadata = data.get("metadata", {})
                         created_at = datetime.fromisoformat(data["created_at"]) if data.get("created_at") else None
                         last_consolidated = data.get("last_consolidated", 0)
+                        encrypted = data.get("encrypted", False)
                     else:
+                        # 如果启用了加密且消息被标记为加密，则解密
+                        if encrypted and data.get("_encrypted") and self.encryption:
+                            data = self.encryption.decrypt_message(data)
                         messages.append(data)
 
             return Session(
@@ -194,17 +202,25 @@ class SessionManager:
         path = self._get_session_path(session.key)
 
         with open(path, "w", encoding="utf-8") as f:
+            # 元数据行（始终明文存储）
             metadata_line = {
                 "_type": "metadata",
                 "key": session.key,
                 "created_at": session.created_at.isoformat(),
                 "updated_at": session.updated_at.isoformat(),
                 "metadata": session.metadata,
-                "last_consolidated": session.last_consolidated
+                "last_consolidated": session.last_consolidated,
+                "encrypted": self.encryption is not None and self.encryption.enabled
             }
             f.write(json.dumps(metadata_line, ensure_ascii=False) + "\n")
+
+            # 消息内容（可选择加密）
             for msg in session.messages:
-                f.write(json.dumps(msg, ensure_ascii=False) + "\n")
+                if self.encryption and self.encryption.should_encrypt_message(msg):
+                    encrypted_msg = self.encryption.encrypt_message(msg)
+                    f.write(json.dumps(encrypted_msg, ensure_ascii=False) + "\n")
+                else:
+                    f.write(json.dumps(msg, ensure_ascii=False) + "\n")
 
         self._cache[session.key] = session
 

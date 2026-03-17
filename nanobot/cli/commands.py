@@ -35,6 +35,8 @@ from nanobot import __logo__, __version__
 from nanobot.config.paths import get_workspace_path
 from nanobot.config.schema import Config
 from nanobot.utils.helpers import sync_workspace_templates
+from nanobot.security.logging import setup_secure_logging
+from nanobot.security.encryption import SessionEncryption, setup_encryption_from_config
 
 app = typer.Typer(
     name="nanobot",
@@ -417,6 +419,14 @@ def _load_runtime_config(config: str | None = None, workspace: str | None = None
     loaded = load_config(config_path)
     if workspace:
         loaded.agents.defaults.workspace = workspace
+
+    # 根据配置设置日志脱敏
+    if hasattr(loaded, 'security'):
+        setup_secure_logging(
+            enable_sanitization=loaded.security.enable_log_sanitization,
+            level="DEBUG" if verbose else "INFO"
+        )
+
     return loaded
 
 
@@ -456,7 +466,7 @@ def gateway(
         import logging
         logging.basicConfig(level=logging.DEBUG)
 
-    config = _load_runtime_config(config, workspace)
+    config = _load_runtime_config(config, workspace, verbose)
     _print_deprecated_memory_window_notice(config)
     port = port if port is not None else config.gateway.port
 
@@ -464,7 +474,10 @@ def gateway(
     sync_workspace_templates(config.workspace_path)
     bus = MessageBus()
     provider = _make_provider(config)
-    session_manager = SessionManager(config.workspace_path)
+
+    # 初始化加密功能
+    session_encryption, _ = setup_encryption_from_config(config)
+    session_manager = SessionManager(config.workspace_path, encryption=session_encryption)
 
     # Create cron service first (callback set after agent creation)
     cron_store_path = get_cron_dir() / "jobs.json"
@@ -647,13 +660,18 @@ def agent(
     from nanobot.bus.queue import MessageBus
     from nanobot.config.paths import get_cron_dir
     from nanobot.cron.service import CronService
+    from nanobot.session.manager import SessionManager
 
-    config = _load_runtime_config(config, workspace)
+    config = _load_runtime_config(config, workspace, logs)
     _print_deprecated_memory_window_notice(config)
     sync_workspace_templates(config.workspace_path)
 
     bus = MessageBus()
     provider = _make_provider(config)
+
+    # 初始化加密功能
+    session_encryption, _ = setup_encryption_from_config(config)
+    session_manager = SessionManager(config.workspace_path, encryption=session_encryption)
 
     # Create cron service for tool usage (no callback needed for CLI unless running)
     cron_store_path = get_cron_dir() / "jobs.json"
@@ -677,6 +695,7 @@ def agent(
         exec_config=config.tools.exec,
         cron_service=cron,
         restrict_to_workspace=config.tools.restrict_to_workspace,
+        session_manager=session_manager,
         mcp_servers=config.tools.mcp_servers,
         channels_config=config.channels,
     )
