@@ -141,11 +141,7 @@ $transportKey
         $acl.Access | ForEach-Object { $acl.RemoveAccessRule($_) | Out-Null }
 
         # 添加当前用户权限
-        $userRule = New-Object System.Security.AccessControl.FileSystemAccessRule(
-            $env:USERNAME,
-            "FullControl",
-            "Allow"
-        )
+        $userRule = New-Object -TypeName System.Security.AccessControl.FileSystemAccessRule -ArgumentList $env:USERNAME, "FullControl", "Allow"
         $acl.SetAccessRule($userRule)
         Set-Acl $BackupPath $acl
 

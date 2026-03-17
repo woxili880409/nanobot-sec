@@ -403,7 +403,7 @@ def _make_provider(config: Config):
     return provider
 
 
-def _load_runtime_config(config: str | None = None, workspace: str | None = None) -> Config:
+def _load_runtime_config(config: str | None = None, workspace: str | None = None, verbose: bool = False) -> Config:
     """Load config and optionally override the active workspace."""
     from nanobot.config.loader import load_config, set_config_path
 
