@@ -159,14 +159,33 @@ class ToolsConfig(Base):
     mcp_servers: dict[str, MCPServerConfig] = Field(default_factory=dict)
 
 
+class SecurityConfig(Base):
+    """安全配置 - 控制加密和日志脱敏功能"""
+
+    # 日志脱敏配置
+    enable_log_sanitization: bool = True  # 启用日志脱敏，默认开启
+    sanitization_patterns: list[str] = Field(default_factory=list)  # 自定义脱敏规则
+
+    # 会话加密配置
+    enable_session_encryption: bool = False  # 启用会话数据加密，默认关闭
+    encryption_key: str = ""  # 会话加密密钥（优先使用环境变量NANOBOT_ENCRYPTION_KEY）
+
+    # 传输加密配置（实验性功能）
+    enable_transport_encryption: bool = False  # 启用传输层加密，默认关闭
+    transport_key: str = ""  # 传输加密密钥（优先使用环境变量NANOBOT_TRANSPORT_KEY）
+
+    # 文件系统安全
+    secure_file_permissions: bool = True  # 设置敏感文件的安全权限
+
+
 class Config(BaseSettings):
     """Root configuration for nanobot."""
-
     agents: AgentsConfig = Field(default_factory=AgentsConfig)
     channels: ChannelsConfig = Field(default_factory=ChannelsConfig)
     providers: ProvidersConfig = Field(default_factory=ProvidersConfig)
     gateway: GatewayConfig = Field(default_factory=GatewayConfig)
     tools: ToolsConfig = Field(default_factory=ToolsConfig)
+    security: SecurityConfig = Field(default_factory=SecurityConfig)  # 安全配置
 
     @property
     def workspace_path(self) -> Path:
