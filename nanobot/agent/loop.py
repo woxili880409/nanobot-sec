@@ -6,6 +6,7 @@ import asyncio
 import json
 import os
 import re
+import signal
 import sys
 from contextlib import AsyncExitStack
 from pathlib import Path
@@ -279,6 +280,10 @@ class AgentLoop:
                 await self._handle_stop(msg)
             elif cmd == "/restart":
                 await self._handle_restart(msg)
+            elif cmd == "/shutdown":
+                await self._handle_shutdown(msg)
+            elif cmd.startswith("/shutdown confirm "):
+                await self._handle_shutdown_confirm(msg)
             else:
                 task = asyncio.create_task(self._dispatch(msg))
                 self._active_tasks.setdefault(msg.session_key, []).append(task)
@@ -313,6 +318,53 @@ class AgentLoop:
             os.execv(sys.executable, [sys.executable, "-m", "nanobot"] + sys.argv[1:])
 
         asyncio.create_task(_do_restart())
+
+    async def _handle_shutdown(self, msg: InboundMessage) -> None:
+        """Handle shutdown command - requires confirmation and password."""
+        await self.bus.publish_outbound(OutboundMessage(
+            channel=msg.channel, chat_id=msg.chat_id,
+            content="⚠️ 警告：这将立即终止所有服务！\n\n请确认是否要关闭服务？\n\n如果确认关闭，请输入：/shutdown confirm 密码\n\n密码：czzzho",
+        ))
+
+    async def _handle_shutdown_confirm(self, msg: InboundMessage) -> None:
+        """Handle shutdown confirmation with password verification."""
+        SHUTDOWN_PASSWORD = "czzzho"
+        
+        try:
+            # Extract password from command
+            parts = msg.content.strip().split()
+            if len(parts) < 3:
+                await self.bus.publish_outbound(OutboundMessage(
+                    channel=msg.channel, chat_id=msg.chat_id,
+                    content="❌ 命令格式错误！正确格式：/shutdown confirm 密码",
+                ))
+                return
+            
+            password = parts[2].strip()
+            
+            if password != SHUTDOWN_PASSWORD:
+                await self.bus.publish_outbound(OutboundMessage(
+                    channel=msg.channel, chat_id=msg.chat_id,
+                    content="❌ 密码错误！服务未关闭。",
+                ))
+                return
+            
+            # Password correct, proceed with shutdown
+            await self.bus.publish_outbound(OutboundMessage(
+                channel=msg.channel, chat_id=msg.chat_id,
+                content="🔒 密码验证通过！\n\n正在安全关闭服务，请稍候...",
+            ))
+            
+            # Signal shutdown to the main gateway process
+            # This will be handled by the gateway command's signal handling
+            os.kill(os.getpid(), signal.SIGINT)
+            
+        except Exception as e:
+            logger.error("Error during shutdown: {}", e)
+            await self.bus.publish_outbound(OutboundMessage(
+                channel=msg.channel, chat_id=msg.chat_id,
+                content="❌ 关闭服务时发生错误：{}".format(str(e)),
+            ))
 
     async def _dispatch(self, msg: InboundMessage) -> None:
         """Process a message under the global lock."""
