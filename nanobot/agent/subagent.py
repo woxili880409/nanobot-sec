@@ -12,7 +12,7 @@ from nanobot.agent.skills import BUILTIN_SKILLS_DIR
 from nanobot.agent.tools.filesystem import EditFileTool, ListDirTool, ReadFileTool, WriteFileTool
 from nanobot.agent.tools.registry import ToolRegistry
 from nanobot.agent.tools.shell import ExecTool
-from nanobot.agent.tools.web import TavilySearchTool, WebFetchTool, WebSearchTool
+from nanobot.agent.tools.web import WebFetchTool, WebSearchTool
 from nanobot.bus.events import InboundMessage
 from nanobot.bus.queue import MessageBus
 from nanobot.providers.base import LLMProvider
@@ -29,19 +29,17 @@ class SubagentManager:
         bus: MessageBus,
         model: str | None = None,
         web_search_config: Any | None = None,
-        web_tavily_config: Any | None = None,
         web_proxy: str | None = None,
         exec_config: Any | None = None,
         restrict_to_workspace: bool = False,
     ):
-        from nanobot.config.schema import ExecToolConfig, TavilySearchConfig, WebSearchConfig
+        from nanobot.config.schema import ExecToolConfig, WebSearchConfig
 
         self.provider = provider
         self.workspace = workspace
         self.bus = bus
         self.model = model or provider.get_default_model()
         self.web_search_config = web_search_config or WebSearchConfig()
-        self.web_tavily_config = web_tavily_config or TavilySearchConfig()
         self.web_proxy = web_proxy
         self.exec_config = exec_config or ExecToolConfig()
         self.restrict_to_workspace = restrict_to_workspace
@@ -105,7 +103,6 @@ class SubagentManager:
                 path_append=self.exec_config.path_append,
             ))
             tools.register(WebSearchTool(config=self.web_search_config, proxy=self.web_proxy))
-            tools.register(TavilySearchTool(config=self.web_tavily_config, proxy=self.web_proxy))
             tools.register(WebFetchTool(proxy=self.web_proxy))
 
             system_prompt = self._build_subagent_prompt()
