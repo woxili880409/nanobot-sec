@@ -1,6 +1,6 @@
 <div align="center">
   <img src="nanobot_logo.png" alt="nanobot" width="500">
-  <h1>nanobot: 超轻量级个人AI助手（优化版）</h1>
+  <h1>nanobot: 超轻量级个人AI助手（安全优化版）</h1>
   <p>
     <a href="https://pypi.org/project/nanobot-ai/"><img src="https://img.shields.io/pypi/v/nanobot-ai" alt="PyPI"></a>
     <a href="https://pepy.tech/project/nanobot-ai"><img src="https://static.pepy.tech/badge/nanobot-ai" alt="Downloads"></a>
@@ -29,7 +29,7 @@
 - ✅ 跨平台文件权限控制（Windows/Unix）
 - ✅ 完整的密钥管理和备份机制
 
-## 安全分析报告
+## 利用TRAE对原有nanobot项目进行安全分析
 ## 🔍 项目信息安全分析报告
 经过详细的代码审查，我确认了您的观察： nanobot项目目前确实以明文方式传输和存储大部分敏感信息 。以下是详细分析和改进方案：
 
@@ -157,8 +157,8 @@ nanobot agent
 
 ## 📖 详细文档
 
-- **[原始项目文档](org_readme.md)**：包含完整的安装、配置和使用指南
-- **[安全功能文档](security_readme.md)**：详细的安全优化说明、配置方法和最佳实践
+- **[原始项目文档](org_readme.md)**：nanobot项目原有的README.md文档
+- **[安全功能文档](security_readme.md)**：安全优化后详细的说明、配置方法和最佳实践
 
 ## 📄 许可证
 
