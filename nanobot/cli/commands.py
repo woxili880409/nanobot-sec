@@ -37,6 +37,7 @@ from nanobot.config.schema import Config
 from nanobot.utils.helpers import sync_workspace_templates
 from nanobot.security.logging import setup_secure_logging
 from nanobot.security.encryption import SessionEncryption, setup_encryption_from_config
+from nanobot.security.file_permissions import setup_file_permissions
 
 app = typer.Typer(
     name="nanobot",
@@ -527,11 +528,18 @@ def gateway(
 
     console.print(f"{__logo__} Starting nanobot gateway version {__version__} on port {port}...")
     sync_workspace_templates(config.workspace_path)
-    bus = MessageBus()
+    
+    # 设置文件权限控制
+    if hasattr(config, 'security') and getattr(config.security, 'secure_file_permissions', True):
+        setup_file_permissions(config.workspace_path, enabled=True)
+    
+    # 初始化加密功能
+    session_encryption, transport_encryption = setup_encryption_from_config(config)
+    
+    # 创建消息总线，传入传输加密
+    bus = MessageBus(transport_encryption=transport_encryption)
     provider = _make_provider(config)
 
-    # 初始化加密功能
-    session_encryption, _ = setup_encryption_from_config(config)
     session_manager = SessionManager(config.workspace_path, encryption=session_encryption)
 
     # Create cron service first (callback set after agent creation)
@@ -718,12 +726,18 @@ def agent(
 
     config = _load_runtime_config(config, workspace)
     sync_workspace_templates(config.workspace_path)
-
-    bus = MessageBus()
-    provider = _make_provider(config)
+    
+    # 设置文件权限控制
+    if hasattr(config, 'security') and getattr(config.security, 'secure_file_permissions', True):
+        setup_file_permissions(config.workspace_path, enabled=True)
 
     # 初始化加密功能
-    session_encryption, _ = setup_encryption_from_config(config)
+    session_encryption, transport_encryption = setup_encryption_from_config(config)
+    
+    # 创建消息总线，传入传输加密
+    bus = MessageBus(transport_encryption=transport_encryption)
+    provider = _make_provider(config)
+
     session_manager = SessionManager(config.workspace_path, encryption=session_encryption)
 
     # Create cron service for tool usage (no callback needed for CLI unless running)

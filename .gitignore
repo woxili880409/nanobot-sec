@@ -28,6 +28,7 @@ workspace/
 skill-vetter/
 self-improving/
 mydocs/
+config.json
 
 .DS_Store
 uv.lock
